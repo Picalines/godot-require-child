@@ -1,0 +1,12 @@
+.import/
+.mono/
+.vscode/
+
+*.csproj
+*.sln
+*.import
+
+default_env.tres
+Example/
+icon.png
+project.godot
