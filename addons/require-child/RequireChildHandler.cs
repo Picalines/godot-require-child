@@ -39,9 +39,16 @@ namespace Picalines.Godot.RequireChild
 
                 var requiredChild = node.GetNodeOrNull(path);
 
+                var memberType = GetMemberType(member)!;
+
                 if (requiredChild is null)
                 {
-                    throw new NullReferenceException($"{node.GetType()} requirers child node of type {GetMemberType(member)} at path {path}");
+                    throw new NullReferenceException($"{node.GetType()} requirers child node of type {memberType} at path {path}");
+                }
+
+                if (!memberType.IsAssignableFrom(requiredChild.GetType()))
+                {
+                    throw new InvalidCastException($"{node.GetType()} requires its child {path} to be assignable to {memberType}");
                 }
 
                 node.Set(member.Name, requiredChild);
