@@ -59,7 +59,7 @@ namespace Picalines.Godot.RequireChild
         {
             var validTypes = Assembly.GetExecutingAssembly().GetTypes()
                 .Where(type => type.IsClass && !type.IsAbstract)
-                .Where(type => type.Assembly.GetName().Name != "GodotSharp" && !Attribute.IsDefined(type, typeof(CompilerGeneratedAttribute)))
+                .Where(type => type.Assembly.GetName().Name != "GodotSharp" && !type.IsDefined(typeof(CompilerGeneratedAttribute)))
                 .Where(type => type.IsSubclassOf(typeof(Node)));
 
             foreach (var validType in validTypes)
@@ -72,14 +72,17 @@ namespace Picalines.Godot.RequireChild
         {
             static bool memberFilter(MemberInfo member, object _)
             {
-                if (Attribute.IsDefined(member, typeof(CompilerGeneratedAttribute)))
+                if (member.IsDefined(typeof(CompilerGeneratedAttribute)))
                 {
                     return false;
                 }
 
-                if (Attribute.IsDefined(member, typeof(RequireChildAttribute)) && member is PropertyInfo { CanWrite: false })
+                if (member.IsDefined(typeof(RequireChildAttribute)) && member is PropertyInfo property)
                 {
-                    throw new InvalidOperationException($"{nameof(RequireChildAttribute)} cannot be used on get-only properties ({member.DeclaringType}.{member.Name}). Add setter, or use readonly field");
+                    if (!(property is { CanRead: true, CanWrite: true } && property.GetGetMethod(nonPublic: true).IsDefined(typeof(CompilerGeneratedAttribute), inherit: true)))
+                    {
+                        throw new InvalidOperationException($"{nameof(RequireChildAttribute)} can be used only on auto properties or fields ({member.DeclaringType}.{member.Name})");
+                    }
                 }
 
                 return GetMemberType(member)?.IsSubclassOf(typeof(Node)) ?? false;
