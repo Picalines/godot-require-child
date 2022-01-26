@@ -9,15 +9,18 @@ namespace Picalines.Godot.RequireChild
 {
     internal sealed class RequireChildHandler : Node
     {
-        private static readonly Dictionary<Type, IEnumerable<MemberInfo>> _TargetMemberInfos = new();
+        private static bool _TargetMembersInitialized = false;
 
-        static RequireChildHandler()
-        {
-            ScanAssemblyForTargetMembers();
-        }
+        private static readonly Dictionary<Type, IEnumerable<MemberInfo>> _TargetMemberInfos = new();
 
         public override void _EnterTree()
         {
+            if (!_TargetMembersInitialized)
+            {
+                ScanAssemblyForTargetMembers();
+                _TargetMembersInitialized = true;
+            }
+
             GetTree().Connect("node_added", this, nameof(TryAssignRequiredChildren));
         }
 
@@ -70,34 +73,34 @@ namespace Picalines.Godot.RequireChild
 
         private static void RegisterTargetMembers(Type validType)
         {
-            static bool memberFilter(MemberInfo member, object _)
-            {
-                if (member.IsDefined(typeof(CompilerGeneratedAttribute)))
-                {
-                    return false;
-                }
-
-                if (member.IsDefined(typeof(RequireChildAttribute)) && member is PropertyInfo property)
-                {
-                    if (!(property is { CanRead: true, CanWrite: true } && property.GetGetMethod(nonPublic: true).IsDefined(typeof(CompilerGeneratedAttribute), inherit: true)))
-                    {
-                        throw new InvalidOperationException($"{nameof(RequireChildAttribute)} can be used only on auto properties or fields ({member.DeclaringType}.{member.Name})");
-                    }
-                }
-
-                return GetMemberType(member)?.IsSubclassOf(typeof(Node)) ?? false;
-            }
-
             var members = validType.FindMembers(
                 MemberTypes.Field | MemberTypes.Property,
                 BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
-                memberFilter,
+                (member, _) => IsTargetMember(member),
                 null);
 
             if (members.Any())
             {
                 _TargetMemberInfos[validType] = members;
             }
+        }
+
+        private static bool IsTargetMember(MemberInfo member)
+        {
+            if (member.IsDefined(typeof(CompilerGeneratedAttribute)))
+            {
+                return false;
+            }
+
+            if (member.IsDefined(typeof(RequireChildAttribute)) && member is PropertyInfo property)
+            {
+                if (!(property is { CanRead: true, CanWrite: true } && property.GetGetMethod(nonPublic: true).IsDefined(typeof(CompilerGeneratedAttribute), inherit: true)))
+                {
+                    throw new InvalidOperationException($"{nameof(RequireChildAttribute)} can be used only on auto properties or fields ({member.DeclaringType}.{member.Name})");
+                }
+            }
+
+            return GetMemberType(member)?.IsSubclassOf(typeof(Node)) ?? false;
         }
 
         private static Type? GetMemberType(MemberInfo member) => member switch
